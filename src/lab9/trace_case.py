@@ -19,8 +19,17 @@ from lab9 import variants
 from lab9.eval import WORLD, make_task
 
 
-def investigate(shape: str, claim_id: str, seed: int) -> dict:
+def investigate(shape: str, claim_id: str, seed: int, bugs: str | None = None) -> dict:
+    """bugs="a,b": run one single-bug shape so each taxonomy row has a reproducible trace
+    (python -m lab9.trace_case --bugs stale_clause --claim C-006 --seed 11)."""
     variants.register()
+    if bugs:
+        from lab8.shapes import SHAPES
+        from lab9.variant_agent import make_shape
+
+        switch = frozenset(b.strip() for b in bugs.split(",") if b.strip())
+        shape = f"trace:{'+'.join(sorted(switch))}"
+        SHAPES[shape] = make_shape(shape, switch)
     claims = load_jsonl(Path("data/public_claims.jsonl"))
     labels = {c["claim_id"]: c["expected"] for c in claims}
     with tempfile.TemporaryDirectory(prefix="lab9-case-", ignore_cleanup_errors=True) as tmp:
@@ -31,13 +40,17 @@ def investigate(shape: str, claim_id: str, seed: int) -> dict:
 def main(argv: list[str] | None = None) -> int:
     utf8_stdio()
     ap = argparse.ArgumentParser(prog="lab9.trace_case")
-    ap.add_argument("--shape", required=True)
+    ap.add_argument("--shape", help="a registered shape, or omit it and pass --bugs")
+    ap.add_argument("--bugs", help="comma-separated failure switches; runs shape trace:<bugs>")
     ap.add_argument("--claim", required=True)
     ap.add_argument("--seed", type=int, default=11)
     args = ap.parse_args(argv)
-    case = investigate(args.shape, args.claim, args.seed)
+    if not args.shape and not args.bugs:
+        ap.error("pass --shape, or --bugs to run one bug switch at a time")
+    shape = args.shape or f"trace:{args.bugs}"
+    case = investigate(shape, args.claim, args.seed, args.bugs)
     t, label = case["trial"], case["label"]
-    print(f"== {args.shape} {args.claim}@{args.seed}  lab8 grader: {'PASS' if t['lab8_pass'] else 'FAIL'} ({t['lab8_reason']})")
+    print(f"== {shape} {args.claim}@{args.seed}  lab8 grader: {'PASS' if t['lab8_pass'] else 'FAIL'} ({t['lab8_reason']})")
     print("-- trace (step, kind, payload)")
     for i, e in enumerate(t["events"], 1):
         print(f"  {i:>2} {e.get('kind', '?'):<18} {json.dumps(e.get('payload'), ensure_ascii=False)[:110]}")
