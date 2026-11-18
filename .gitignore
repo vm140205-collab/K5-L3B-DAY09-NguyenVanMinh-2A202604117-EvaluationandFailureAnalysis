@@ -20,3 +20,6 @@ student_drop/
 
 # Instructor-only hidden pack from Day 8. Never push it.
 src/eval/instructor/
+
+# local scratch (probes, notes) -- never part of the submission
+.scratch/
